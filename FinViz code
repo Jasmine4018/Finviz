@@ -1,1 +1,69 @@
+import requests
+import csv
+import time
+from datetime import datetime
+import pytz
+import os
 
+API_URL = "https://elite.finviz.com/export.ashx?v=152&f=sh_curvol_o100,sh_relvol_o2,ta_change_u&ft=4&c=0,1,2,5,6,7,25,26,27,28,29,30,84,90,91,92,93,95,96,97,98,99,42,43,44,45,46,47,49,50,51,52,53,54,68,60,61,63,64,67,81,87,88,65,66,71,72&auth=06b372cc-e5d2-4bca-b079-63085b9772f8"
+FILE_PATH = "export.csv"
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+WAIT_TIME_SECONDS = 120
+START_HOUR = 7
+END_HOUR = 18
+END_MINUTE = 30
+
+def fetch_stock_data(api_url):
+    headers = {
+        'User-Agent': USER_AGENT
+    }
+    try:
+        response = requests.get(api_url, headers=headers)
+        if response.status_code == 200:
+            return response.content
+        else:
+            print(f"Failed to fetch data. Status code: {response.status_code}. Response: {response.text}")
+            return None
+    except Exception as e:
+        print(f"Error fetching data: {str(e)}")
+        return None
+
+def append_csv(file_path, new_data):
+    new_rows = list(csv.reader(new_data.decode('utf-8').splitlines()))
+    header = new_rows[0]
+    header.insert(0, "Timestamp")
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    rows_to_append = []
+    for row in new_rows[1:]:
+        row.insert(0, current_time)
+        rows_to_append.append(row)
+    
+    file_exists = os.path.isfile(file_path)
+    
+    with open(file_path, 'a', newline='') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(header)
+        writer.writerows(rows_to_append)
+
+def main():
+    central = pytz.timezone('US/Central')
+    now = datetime.now(central)
+    start_time = now.replace(hour=START_HOUR, minute=0, second=0, microsecond=0)
+    end_time = now.replace(hour=END_HOUR, minute=END_MINUTE, second=0, microsecond=0)
+    
+    while datetime.now(central) < end_time:
+        if datetime.now(central) >= start_time:
+            print(f"Fetching data at {datetime.now(central)}")
+            data = fetch_stock_data(API_URL)
+            if data:
+                append_csv(FILE_PATH, data)
+                print("Data appended to CSV file successfully.")
+            else:
+                print("Failed to fetch data. Skipping this update.")
+        
+        # Wait for the specified time before the next update
+        time.sleep(WAIT_TIME_SECONDS)
+
+if __name__ == "__main__":
+    main()
