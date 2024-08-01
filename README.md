@@ -1,0 +1,2 @@
+# Finviz
+Finviz stock fetcher
